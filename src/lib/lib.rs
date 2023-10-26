@@ -26,7 +26,7 @@ pub struct Target {
     pub name: String,
     pub comments: Vec<String>,
     pub ingredients: Option<Vec<Ingredient>>,
-    pub instructions: Vec<Instruction>,
+    pub instructions: Option<Vec<Instruction>>,
 }
 
 #[derive(Debug,PartialEq)]
@@ -282,8 +282,8 @@ fn ingredients(i: &str) -> IResult<&str, Option<Vec<Ingredient>>> {
         )(i)
 }
 
-fn instructions(i: &str) -> IResult<&str, Vec<Instruction>> {
-    block(i)
+fn instructions(i: &str) -> IResult<&str, Option<Vec<Instruction>>> {
+    opt(block)(i)
 }
 
 fn block(i: &str) -> IResult<&str, Vec<Instruction>> {
@@ -355,7 +355,7 @@ test3: blah (100g), simple sugar(100g)
         name: "test2".to_string(),
         comments: vec![],
         ingredients: Some(vec![Ingredient { name: "blah".to_string(), amount: "".to_string(), unit: "".to_string() }]),
-        instructions: vec![Instruction { body: "test".to_string() }],
+        instructions: vec![Instruction { body: "test".to_string() }].into(),
     });
 
     let (input, target4) = target(input).expect("recipe");
@@ -367,7 +367,7 @@ test3: blah (100g), simple sugar(100g)
             Ingredient { name: "blah".to_string(), amount: "100".to_string(), unit: "g".to_string() },
             Ingredient { name: "simple sugar".to_string(), amount: "100".to_string(), unit: "g".to_string() },
         ]),
-        instructions: vec![Instruction { body: "hello world".to_string() }, Instruction { body: "hi".to_string() }],
+        instructions: vec![Instruction { body: "hello world".to_string() }, Instruction { body: "hi".to_string() }].into(),
     });
 
     //Recipe::parse(&contents)
@@ -383,7 +383,20 @@ pizza:
         name: String::from("pizza"),
         comments: vec![],
         ingredients: None,
-        instructions: vec![Instruction { body: "blah".to_string() }],
+        instructions: vec![Instruction { body: "blah".to_string() }].into(),
+    })));
+}
+
+#[test]
+fn test_parse_target_with_no_instructions() {
+    let input = r#"
+cheese: mozzarella (part skim 1 block low mostiture)
+"#;
+    assert_eq!(target(input), Ok(("", Target {
+        name: String::from("cheese"),
+        comments: vec![],
+        ingredients: Some(vec![Ingredient { name: "mozzarella".to_string(), amount: "part skim 1 block low mostiture".to_string(), unit: "".to_string() }]),
+        instructions: None,
     })));
 }
 
@@ -397,7 +410,7 @@ pizza: ingredient1
         name: String::from("pizza"),
         comments: vec![],
         ingredients: Some(vec![Ingredient { name: "ingredient1".to_string(), amount: "".to_string(), unit: "".to_string()}]),
-        instructions: vec![Instruction { body: "blah".to_string() }],
+        instructions: vec![Instruction { body: "blah".to_string() }].into(),
     })));
 }
 
@@ -413,7 +426,7 @@ pizza:
         name: String::from("pizza"),
         comments: vec!["makes 4 dough balls".to_string()],
         ingredients: None,
-        instructions: vec![Instruction { body: "blah".to_string() }, Instruction { body: "test2".to_string() }],
+        instructions: vec![Instruction { body: "blah".to_string() }, Instruction { body: "test2".to_string() }].into(),
     })));
 }
 
@@ -422,14 +435,14 @@ fn parse_instructions() {
     let input = r#"	mix water, yeast, salt together into wet mixture # until everything disolves
 	warm water # to a little more than luke warm
     "#;
-    assert_eq!(instructions(input), Ok(("\n    ", vec![
+    assert_eq!(instructions(input), Ok(("\n    ", Some(vec![
                                                                 Instruction {
                                                                     body: String::from("mix water, yeast, salt together into wet mixture # until everything disolves"),
                                                                 },
                                                                 Instruction {
                                                                     body: String::from("warm water # to a little more than luke warm"),
                                                                 }
-    ])));
+    ]))));
 }
 
 #[test]

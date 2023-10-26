@@ -52,14 +52,44 @@ fn main() {
         print!("{}: ", target.name);
 
         if let Some(ingredients) = &target.ingredients {
+            let mut ingredient_list = Vec::<String>::new();
+
             for ingredient in ingredients.iter() {
-                print!("{} ({}{}), ", ingredient.name, ingredient.amount, ingredient.unit);
+                let mut out = String::new();
+                if ingredient.amount != "" {
+                    out.push_str("(");
+                    out.push_str(&ingredient.amount);
+                    if ingredient.unit == "" {
+                        out.push_str(")");
+                    }
+                }
+
+                if ingredient.unit != "" {
+                    out.push_str(&ingredient.unit);
+                    out.push_str(")");
+                }
+
+                if out == "" {
+                    out.insert_str(0, &ingredient.name);
+                    //print!("{}", ingredient.name);
+                } else {
+                    out.insert_str(0, " ");
+                    out.insert_str(0, &ingredient.name);
+                    //print!("{} {}", ingredient.name, out);
+                }
+
+                ingredient_list.push(out);
             }
-            println!();
+
+            println!("{}", ingredient_list.join(", "));
         }
 
-        for instruction in target.instructions.iter() {
-            println!("\t{}", instruction.body);
+        if let Some(instructions) = &target.instructions {
+            for instruction in instructions.iter() {
+                println!("\t{}", instruction.body);
+            }
         }
+
+        println!();
     }
 }
