@@ -6,9 +6,9 @@ use wasm_bindgen::prelude::*;
 
 use nom::{
     IResult,
-    error::ParseError,
+    error::{Error, ParseError, ErrorKind},
     bytes::complete::{tag, take_while_m_n, take_while, take_until1, take_till, take_until, is_not, take_till1, is_a},
-    combinator::{success, cut, recognize, rest, map_res, value, peek, eof, opt, fail},
+    combinator::{success, cut, map, recognize, rest, map_res, value, peek, eof, opt, fail},
     character::complete::{newline, multispace0, multispace1, char, space0, space1, alphanumeric0, alphanumeric1, alpha1, digit1},
     character::{is_newline},
     number::complete::{recognize_float},
@@ -132,12 +132,12 @@ fn target(input: &str) -> IResult<&str, Target> {
 
     let name = String::from(name);
 
-    println!("{:?}\n\n", input);
+    eprintln!("{:?}\n\n", input);
     let (input, ingredients) = terminated(ingredients, newline)(input)?;
-    println!("ingredients: {:?} {:?}", input, ingredients);
+    eprintln!("ingredients: {:?} {:?}", input, ingredients);
 
     let (input, instructions) = instructions(input)?;
-    println!("instructions: {:?} {:?}", input, instructions);
+    eprintln!("instructions: {:?} {:?}", input, instructions);
 
     Ok((input, Target { name, comments: comments2, ingredients, instructions }))
 }
@@ -160,18 +160,6 @@ where
 }
 
 fn parse_name(i: &str) -> IResult<&str, &str> {
-    //alt((alphanumeric1, space1))(i)
-    //recognize(
-      //many1(
-              //alt((alphanumeric1, space0)),
-      //)
-    //)(i)
-    //terminated(
-        //take_while(not_left_paren),
-        //end_of_line,
-        //)(i)
-        //take_while(not_left_paren)(i)
-
     let (input, mut out) = 
         many1(
             alt((space1, alphanumeric1))
@@ -189,31 +177,76 @@ fn parse_name(i: &str) -> IResult<&str, &str> {
     Ok((input, static_ref))
 }
 
-//fn end_of_line(i: &str) -> IResult<&str, &str> {
-//}
-
-fn not_left_paren(ch: char) -> bool {
-    ch != '('
+#[derive(Debug,PartialEq)]
+pub struct Measurement {
+    pub amount: String,
+    pub unit: String,
 }
 
-//fn parse_parens(i: &str) -> IResult<&str, &str> {
-    //delimited(char('('), parse_token, char(')'))(i)
-//}
+fn parse_amount(i: &str) -> IResult<&str, (&str, &str)> {
+    let mut test = tuple((recognize_float::<&str, Error<&str>>, preceded(space0, take_until(")"))));
+    match test(i) {
+        Ok((input, output)) => {
+            println!("{:?}", output);
+            return Ok((input, (output.0, output.1)))
+        },
+        Err(e) => {
+            //let e2 = Err::<&str, nom::Err<nom::error::Error<&str>>>(e);
+            //println!("{:?}", e);
+        }
+    }
 
-fn parse_measurement(i: &str) -> IResult<&str, &str> {
-    delimited(char('('), recognize(pair(recognize_float, alphanumeric1)), char(')'))(i)
+    let mut test2 = recognize(many1(alt((space1::<&str, Error<&str>>, alphanumeric1))));
+    //let mut test2 = take_until::<&str, &str, Error<&str>>(")");
+    match test2(i) {
+        Ok((input, output)) => {
+            return Ok((input, (output, "")))
+        },
+        Err(e) => {
+            //println!("here{:?}", e);
+            //let e2 = Err::<&str, nom::Err<nom::error::Error<&str>>>(e);
+            //return e2;
+            return fail("not enough information");
+        }
+    }
+
+    //println!("{:?}", test(i));
+
+    //alt((
+            //tuple((recognize_float, preceded(space0, rest))),
+    //))(i)
+        //tuple((rest))
+        //recognize(many1(alt((space1, alphanumeric1)))),
+}
+
+#[test]
+fn test_parse_amount() {
+    assert_eq!(parse_amount("1.4g)"), Ok((")", ("1.4", "g"))));
+}
+
+#[test]
+fn test_parse_amount_with_space() {
+    assert_eq!(parse_amount("1.4 cups)"), Ok((")", ("1.4", "cups"))));
+}
+
+#[test]
+fn test_parse_amount_with_string() {
+    assert_eq!(parse_amount("to taste)"), Ok((")", ("to taste", ""))));
+}
+
+#[test]
+fn test_parse_amount_with_string_and_non_digit_chars() {
+    assert_eq!(parse_amount("taste!)"), Ok(("!)", ("taste", ""))));
+}
+
+fn parse_measurement(i: &str) -> IResult<&str, (&str, &str)> {
+    delimited(char('('), parse_amount, char(')'))(i)
 }
 
 #[test]
 fn test_parse_measurement() {
-    assert_eq!(parse_measurement("(1.4g)"), Ok(("", "1.4g")));
+    assert_eq!(parse_measurement("(1.4g)"), Ok(("", ("1.4", "g"))));
 }
-
-//#[test]
-//fn test_parse_measurement_empty() {
-    //assert_eq!(parse_measurement(""), Ok(("", "")));
-//}
-
 
 fn ingredient(i: &str) -> IResult<&str, Ingredient> {
     let (input, name) = preceded(
@@ -221,26 +254,23 @@ fn ingredient(i: &str) -> IResult<&str, Ingredient> {
             parse_name,
         )(i)?;
 
-    println!("here1: {:?} {:?}\n", input, name);
+    eprintln!("here1: {:?} {:?}\n", input, name);
 
-    let (input2, name2) = terminated(
-        tag(name),
-        opt(space1),
-    )(name)?;
-    //if input == "" {
-        //return Ok((input, Ingredient { name: String::from(name), amount: String::from(""), unit: String::from("") }));
-    //}
-    println!("here2: {:?} {:?}\n", input2, name2);
-    //println!("here2: {:?} {:?}\n", input2, name2);
+    //let (input2, name2) = terminated(
+        //tag(name),
+        //opt(space1),
+    //)(name)?;
 
-    //let (_, measurement) = delimited(tag("("), alphanumeric1, tag(")"))(input)?;
+    //eprintln!("here2: {:?} {:?}\n", input2, name2);
+
     let (input, measurement) = opt(parse_measurement)(input)?;
-    if let Some(x) = measurement {
-        let (input2, amount) = recognize_float(x)?;
-        let (_, unit) = alpha1(input2)?;
-        let amount = String::from(amount);
-        let unit = String::from(unit);
-        Ok((input, Ingredient { name: String::from(name), amount, unit }))
+    println!("here3: {:?} {:?}\n", input, measurement);
+    if let Some((amount, unit)) = measurement {
+        //let (input2, amount) = recognize_float(x)?;
+        //let (_, unit) = alpha1(input2)?;
+        //let amount = String::from(amount);
+        //let unit = String::from(unit);
+        Ok((input, Ingredient { name: String::from(name), amount: amount.to_string(), unit: unit.to_string() }))
     } else {
         Ok((input, Ingredient { name: String::from(name), amount: String::from(""), unit: String::from("") }))
     }
@@ -265,31 +295,30 @@ fn ident(i: &str) -> IResult<&str, Instruction> {
 }
 
 fn instruction(i: &str) -> IResult<&str, Instruction> {
-    //let (input, body) = alt((take_until("\n"), eof))(i)?;
-    //let (input, body) = take_while(|c| c != '\n')(i)?;
     let (input, body) = take_until("\n")(i)?;
     //println!("here2343 {:?} {:?}\n", input, body);
 
     if body == "" {
         fail::<_, &str, _>(input)?;
     }
-    //let (input, test) = eof(input)?;
-    //println!("{:?}", test);
 
     Ok((input, Instruction { body: String::from(body) }))
 }
 
 #[derive(PartialEq, Eq, Debug)]
-struct Recipe {
+pub struct Recipe {
     first_name: String,
     last_name: String,
 }
 
 impl Recipe {
-    //fn parse(i: &str) -> IResult<&str, &str> {
+    pub fn parse(input: &str) -> IResult<&str, Vec<Target>> {
+        let (input, targets) = many0(target)(input)?;
+        Ok((input, targets))
+
         //let mut recipe_parser = map(
         //);
-    //}
+    }
 }
 
 #[test]
@@ -315,8 +344,6 @@ test3: blah (100g), simple sugar(100g)
 	hi
 
     "#);
-    //let file_path = "/home/silas/repos/sbaronda_blog/apps/recipes/recipes/pizza.recipe";
-    //let recipe = fs::read_to_string(file_path).expect("Should have been able to read the file");
 
     println!("{}", recipe);
     let (input, target2) = target(&recipe).expect("recipe");
@@ -537,6 +564,23 @@ fn parse_ingredient_name_with_spaces() {
     })));
 }
 
+#[test]
+fn parse_ingredient_name_with_unitless_amount() {
+    assert_eq!(ingredient("sugar (to taste)"), Ok(("", Ingredient {
+        name: String::from("sugar"),
+        amount: String::from("to taste"),
+        unit: String::from(""),
+    })));
+}
+
+#[test]
+fn parse_ingredient_name_with_space_between_amount_and_unit() {
+    assert_eq!(ingredient("minced garlic (4 cloves)"), Ok(("", Ingredient {
+        name: String::from("minced garlic"),
+        amount: String::from("4"),
+        unit: String::from("cloves"),
+    })));
+}
 
 #[test]
 fn parse_ingredient_without_unit() {

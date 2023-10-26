@@ -1,8 +1,8 @@
 use clap::{App, Arg};
-use std::fs;
+use std::{fs, println};
 use std::path::Path;
 
-use recipe_parser;
+use recipe_parser::{self, Ingredient};
 
 fn main() {
     let matches = App::new("recipes")
@@ -39,7 +39,27 @@ fn main() {
         }
     };
 
-    recipe_parser::test();
-    println!("{:?}", input);
-    //Recipe::parse()
+    //recipe_parser::test();
+    //println!("{:?}", input);
+    let Ok((i, targets)) = recipe_parser::Recipe::parse(&input) else { todo!() };
+    println!("{:?}", i);
+
+    for target in targets.iter() {
+        for comment in target.comments.iter() {
+            println!("# {}", comment);
+        }
+
+        print!("{}: ", target.name);
+
+        if let Some(ingredients) = &target.ingredients {
+            for ingredient in ingredients.iter() {
+                print!("{} ({}{}), ", ingredient.name, ingredient.amount, ingredient.unit);
+            }
+            println!();
+        }
+
+        for instruction in target.instructions.iter() {
+            println!("\t{}", instruction.body);
+        }
+    }
 }
