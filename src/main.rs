@@ -1,17 +1,18 @@
 extern crate nom;
 use std::println;
 
-use std::fs;
+//use std::fs;
 
 use nom::{
     IResult,
-    bytes::complete::{tag, take_while_m_n, take_while, take_until1, take_until, is_not, take_till1, is_a},
-    combinator::{recognize, rest, map_res, value, peek, eof, opt},
-    character::complete::{newline, multispace0, char, space0, space1, alphanumeric1, alpha1, digit1},
+    error::ParseError,
+    bytes::complete::{tag, take_while_m_n, take_while, take_until1, take_till, take_until, is_not, take_till1, is_a},
+    combinator::{success, cut, recognize, rest, map_res, value, peek, eof, opt, fail},
+    character::complete::{newline, multispace0, multispace1, char, space0, space1, alphanumeric0, alphanumeric1, alpha1, digit1},
     character::{is_newline},
     number::complete::{recognize_float},
     branch::alt,
-    multi::{many1, many0, separated_list1, separated_list0},
+    multi::{many1, many0, separated_list1, separated_list0, fold_many0},
     sequence::{pair, tuple, delimited, terminated, preceded},
 };
 
@@ -23,7 +24,8 @@ use nom::{
 pub struct Target {
     pub name: String,
     pub comments: Vec<String>,
-    //pub instructions: Vec<Instruction>,
+    pub ingredients: Option<Vec<Ingredient>>,
+    pub instructions: Vec<Instruction>,
 }
 
 #[derive(Debug,PartialEq)]
@@ -104,22 +106,21 @@ fn target(input: &str) -> IResult<&str, Target> {
     let (input, comments) = comments(input)?;
     let comments2 = comments.iter().map(|s| s.to_string()).collect();
 
-    let (input, name) =
-        terminated(
-            alphanumeric1,
-            tag(":"),
-            )(input)?;
+    let (input, name) = terminated(
+        alphanumeric1,
+        tag(":"),
+    )(input)?;
 
     let name = String::from(name);
 
-    //let (input, ingredients) = ingredients(input).expect("ingreidents");
-    //println!("{:?} {:?}\n", input, target);
+    println!("{:?}\n\n", input);
+    let (input, ingredients) = terminated(ingredients, newline)(input)?;
+    println!("ingredients: {:?} {:?}", input, ingredients);
 
+    let (input, instructions) = instructions(input)?;
+    println!("instructions: {:?} {:?}", input, instructions);
 
-    //let (input, instructions) = instructions(input).expect("instructions");
-    //println!("{:?} {:?}\n", input, target);
-
-    Ok((input, Target { name, comments: comments2 }))
+    Ok((input, Target { name, comments: comments2, ingredients, instructions }))
 }
 
 fn end_of_expression(i: &str) -> IResult<&str, ()> {
@@ -130,13 +131,24 @@ fn end_of_expression(i: &str) -> IResult<&str, ()> {
     ))(i)
 }
 
-//fn ingredients(input: &str) -> IResult<&str, Vec<Ingredient>> {
-    //take_while1(ingredient)(input)
-    //terminated(
-        //alt((ingredient, terminated(parse_token, end_of_expression))),
-        //multispace0,
-    //)(i)
+
+//fn syllable(i: &str) -> IResult<&str, Syllable> {
+    //let (rest, (_, pronunciation)) = tuple((
+        //space0,
+        //alpha1,
+    //))(i)?;
+
+    //Ok((rest, Syllable::new(pronunciation, tone)))
 //}
+
+fn ws<'a, F: 'a, O, E: ParseError<&'a str>>(
+    inner: F,
+) -> impl FnMut(&'a str) -> IResult<&'a str, O, E>
+where
+    F: Fn(&'a str) -> IResult<&'a str, O, E>,
+{
+    delimited(multispace0, inner, multispace0)
+}
 
 fn parse_name(i: &str) -> IResult<&str, &str> {
     //alt((alphanumeric1, space1))(i)
@@ -150,14 +162,22 @@ fn parse_name(i: &str) -> IResult<&str, &str> {
         //end_of_line,
         //)(i)
         //take_while(not_left_paren)(i)
-    terminated(
-    alt((
-            take_until(" ("),
-            take_till1(|c| c == '\n'),
-            )),
-            space0,
-    )
-    (i)
+
+    let (input, mut out) = 
+        many1(
+            alt((space1, alphanumeric1))
+        )
+    (i)?;
+
+    if let Some(last) = out.last() {
+        if last.trim().is_empty() {
+            out.pop();
+        }
+    }
+
+    let static_ref: &'static mut str = out.join("").leak();
+
+    Ok((input, static_ref))
 }
 
 //fn end_of_line(i: &str) -> IResult<&str, &str> {
@@ -180,50 +200,72 @@ fn test_parse_measurement() {
     assert_eq!(parse_measurement("(1.4g)"), Ok(("", "1.4g")));
 }
 
+//#[test]
+//fn test_parse_measurement_empty() {
+    //assert_eq!(parse_measurement(""), Ok(("", "")));
+//}
+
 
 fn ingredient(i: &str) -> IResult<&str, Ingredient> {
     let (input, name) = preceded(
-        space0,
-        parse_name,
+            space0,
+            parse_name,
         )(i)?;
 
-    if input == "" {
-        return Ok((input, Ingredient { name: String::from(name), amount: String::from(""), unit: String::from("") }));
-    }
+    println!("here1: {:?} {:?}\n", input, name);
+
+    let (input2, name2) = terminated(
+        tag(name),
+        opt(space1),
+    )(name)?;
+    //if input == "" {
+        //return Ok((input, Ingredient { name: String::from(name), amount: String::from(""), unit: String::from("") }));
+    //}
+    println!("here2: {:?} {:?}\n", input2, name2);
+    //println!("here2: {:?} {:?}\n", input2, name2);
 
     //let (_, measurement) = delimited(tag("("), alphanumeric1, tag(")"))(input)?;
-    let (input, measurement) = parse_measurement(input)?;
-    let (input2, amount) = recognize_float(measurement)?;
-    let (_, unit) = alpha1(input2)?;
-
-    let amount = String::from(amount);
-    let unit = String::from(unit);
-
-    Ok((input, Ingredient { name: String::from(name), amount, unit }))
+    let (input, measurement) = opt(parse_measurement)(input)?;
+    if let Some(x) = measurement {
+        let (input2, amount) = recognize_float(x)?;
+        let (_, unit) = alpha1(input2)?;
+        let amount = String::from(amount);
+        let unit = String::from(unit);
+        Ok((input, Ingredient { name: String::from(name), amount, unit }))
+    } else {
+        Ok((input, Ingredient { name: String::from(name), amount: String::from(""), unit: String::from("") }))
+    }
 }
 
-fn ingredients(i: &str) -> IResult<&str, Vec<Ingredient>> {
-    terminated(
+fn ingredients(i: &str) -> IResult<&str, Option<Vec<Ingredient>>> {
+    opt(
         separated_list1(alt((tag(", "), tag(" ,"), tag(","))), ingredient),
-        opt(newline),
         )(i)
 }
 
 fn instructions(i: &str) -> IResult<&str, Vec<Instruction>> {
     block(i)
-    //separated_list1(tag("\n"), instruction)(i)
 }
 
-fn block(input: &str) -> IResult<&str, Vec<Instruction>> {
-    separated_list1(newline, ident)(input)
+fn block(i: &str) -> IResult<&str, Vec<Instruction>> {
+    separated_list1(newline, ident)(i)
 }
 
-fn ident(input: &str) -> IResult<&str, Instruction> {
-    preceded(space1, instruction)(input)
+fn ident(i: &str) -> IResult<&str, Instruction> {
+    preceded(space1, instruction)(i)
 }
 
 fn instruction(i: &str) -> IResult<&str, Instruction> {
-    let (input, body) = alt((take_until("\n"), rest))(i)?;
+    //let (input, body) = alt((take_until("\n"), eof))(i)?;
+    //let (input, body) = take_while(|c| c != '\n')(i)?;
+    let (input, body) = take_until("\n")(i)?;
+    //println!("here2343 {:?} {:?}\n", input, body);
+
+    if body == "" {
+        fail::<_, &str, _>(input)?;
+    }
+    //let (input, test) = eof(input)?;
+    //println!("{:?}", test);
 
     Ok((input, Instruction { body: String::from(body) }))
 }
@@ -253,15 +295,46 @@ dough: water (368g), salt (18g), instant dry yeast (1.4g), 00 flour (613g)
 	proof in the bowl for about 2-3 hours
 	divide into 250g balls and place into a regfregiated tube for 48+ hours
 	put a little olive oil on balls to prevent skinning
+
+test2: blah
+	test
+
+
+# comment 1
+test3: blah (100g), simple sugar(100g)
+	hello world
+	hi
+
     "#);
     //let file_path = "/home/silas/repos/sbaronda_blog/apps/recipes/recipes/pizza.recipe";
     //let recipe = fs::read_to_string(file_path).expect("Should have been able to read the file");
 
-    //println!("{:?}", recipe);
-    let (input, target) = target(&recipe).expect("target");
-    println!("{:?} {:?}\n", input, target);
-    //Recipe::parse(&contents)
+    println!("{}", recipe);
+    let (input, target2) = target(&recipe).expect("recipe");
+    println!("{:?} {:?}\n", input, target2);
 
+    let (input, target3) = target(input).expect("recipe");
+    println!("{:?} {:?}\n", input, target3);
+    assert_eq!(target3, Target {
+        name: "test2".to_string(),
+        comments: vec![],
+        ingredients: Some(vec![Ingredient { name: "blah".to_string(), amount: "".to_string(), unit: "".to_string() }]),
+        instructions: vec![Instruction { body: "test".to_string() }],
+    });
+
+    let (input, target4) = target(input).expect("recipe");
+    println!("{:?} {:?}\n", input, target4);
+    assert_eq!(target4, Target {
+        name: "test3".to_string(),
+        comments: vec!["comment 1".to_string()],
+        ingredients: Some(vec![
+            Ingredient { name: "blah".to_string(), amount: "100".to_string(), unit: "g".to_string() },
+            Ingredient { name: "simple sugar".to_string(), amount: "100".to_string(), unit: "g".to_string() },
+        ]),
+        instructions: vec![Instruction { body: "hello world".to_string() }, Instruction { body: "hi".to_string() }],
+    });
+
+    //Recipe::parse(&contents)
 }
 
 fn main() {
@@ -270,25 +343,54 @@ fn main() {
 
 #[test]
 fn test_parse_target() {
-    assert_eq!(target("pizza:"), Ok(("", Target {
+    let input = r#"
+pizza:
+	blah
+"#;
+    assert_eq!(target(input), Ok(("\n", Target {
         name: String::from("pizza"),
         comments: vec![],
+        ingredients: None,
+        instructions: vec![Instruction { body: "blah".to_string() }],
+    })));
+}
+
+#[test]
+fn test_parse_target_with_ingredients() {
+    let input = r#"
+pizza: ingredient1
+	blah
+"#;
+    assert_eq!(target(input), Ok(("\n", Target {
+        name: String::from("pizza"),
+        comments: vec![],
+        ingredients: Some(vec![Ingredient { name: "ingredient1".to_string(), amount: "".to_string(), unit: "".to_string()}]),
+        instructions: vec![Instruction { body: "blah".to_string() }],
     })));
 }
 
 #[test]
 fn test_parse_target_with_comments() {
-    assert_eq!(target("\n# makes 4 dough balls\npizza:"), Ok(("", Target {
+    let input = r#"
+# makes 4 dough balls
+pizza:
+	blah
+	test2
+"#;
+    assert_eq!(target(input), Ok(("\n", Target {
         name: String::from("pizza"),
         comments: vec!["makes 4 dough balls".to_string()],
+        ingredients: None,
+        instructions: vec![Instruction { body: "blah".to_string() }, Instruction { body: "test2".to_string() }],
     })));
 }
 
 #[test]
 fn parse_instructions() {
     let input = r#"	mix water, yeast, salt together into wet mixture # until everything disolves
-	warm water # to a little more than luke warm"#;
-    assert_eq!(instructions(input), Ok(("", vec![
+	warm water # to a little more than luke warm
+    "#;
+    assert_eq!(instructions(input), Ok(("\n    ", vec![
                                                                 Instruction {
                                                                     body: String::from("mix water, yeast, salt together into wet mixture # until everything disolves"),
                                                                 },
@@ -299,8 +401,13 @@ fn parse_instructions() {
 }
 
 #[test]
+fn parse_empty_ingredients() {
+    assert_eq!(ingredients(""), Ok(("", None)));
+}
+
+#[test]
 fn parse_ingredients() {
-    assert_eq!(ingredients("sauce (16g), 00 flour (368g)"), Ok(("", vec![
+    assert_eq!(ingredients("sauce (16g), 00 flour (368g)"), Ok(("", Some(vec![
                                                                 Ingredient {
                                                                     name: String::from("sauce"),
                                                                     amount: String::from("16"),
@@ -311,12 +418,12 @@ fn parse_ingredients() {
                                                                     amount: String::from("368"),
                                                                     unit: String::from("g"),
                                                                 }
-    ])));
+    ]))));
 }
 
 #[test]
 fn parse_ingredients_with_no_space_between_comma() {
-    assert_eq!(ingredients("sauce (16g),00 flour (368g)"), Ok(("", vec![
+    assert_eq!(ingredients("sauce (16g),00 flour (368g)"), Ok(("", Some(vec![
                                                                 Ingredient {
                                                                     name: String::from("sauce"),
                                                                     amount: String::from("16"),
@@ -327,12 +434,12 @@ fn parse_ingredients_with_no_space_between_comma() {
                                                                     amount: String::from("368"),
                                                                     unit: String::from("g"),
                                                                 }
-    ])));
+    ]))));
 }
 
 #[test]
 fn parse_ingredients_with_space_after_paren() {
-    assert_eq!(ingredients("sauce (16g) ,00 flour (368g)"), Ok(("", vec![
+    assert_eq!(ingredients("sauce (16g) ,00 flour (368g)"), Ok(("", Some(vec![
                                                                 Ingredient {
                                                                     name: String::from("sauce"),
                                                                     amount: String::from("16"),
@@ -343,7 +450,50 @@ fn parse_ingredients_with_space_after_paren() {
                                                                     amount: String::from("368"),
                                                                     unit: String::from("g"),
                                                                 }
-    ])));
+    ]))));
+}
+
+#[test]
+fn parse_ingredients_with_only_one() {
+    assert_eq!(ingredients("sauce (16g)\n"), Ok(("\n", Some(vec![
+                                                                Ingredient {
+                                                                    name: String::from("sauce"),
+                                                                    amount: String::from("16"),
+                                                                    unit: String::from("g"),
+                                                                },
+    ]))));
+}
+
+#[test]
+fn parse_ingredients_with_only_one_with_no_amount_unit() {
+    assert_eq!(ingredients("sauce\n"), Ok(("\n", Some(vec![
+                                                                Ingredient {
+                                                                    name: String::from("sauce"),
+                                                                    amount: String::from(""),
+                                                                    unit: String::from(""),
+                                                                },
+    ]))));
+}
+
+#[test]
+fn parse_ingredients_with_no_amount_unit_and_one_with() {
+    assert_eq!(ingredients("sauce, blah    (213g), simple  sugar \n"), Ok(("\n", Some(vec![
+                                                                Ingredient {
+                                                                    name: String::from("sauce"),
+                                                                    amount: String::from(""),
+                                                                    unit: String::from(""),
+                                                                },
+                                                                Ingredient {
+                                                                    name: String::from("blah"),
+                                                                    amount: String::from("213"),
+                                                                    unit: String::from("g"),
+                                                                },
+                                                                Ingredient {
+                                                                    name: String::from("simple  sugar"),
+                                                                    amount: String::from(""),
+                                                                    unit: String::from(""),
+                                                                },
+    ]))));
 }
 
 #[test]
