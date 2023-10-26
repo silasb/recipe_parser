@@ -1,7 +1,8 @@
 extern crate nom;
-use std::println;
 
-//use std::fs;
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
+
 
 use nom::{
     IResult,
@@ -46,6 +47,24 @@ pub struct Color {
     pub red:   u8,
     pub green: u8,
     pub blue:  u8,
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+extern {
+    pub fn alert(s: &str);
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn test() {
+    //println!("test");
+    alert(&format!("Hello, {}!", "hello"));
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn test() {
+    println!("test");
 }
 
 fn from_hex(input: &str) -> Result<u8, std::num::ParseIntError> {
@@ -130,16 +149,6 @@ fn end_of_expression(i: &str) -> IResult<&str, ()> {
         //value((), char(' ')),
     ))(i)
 }
-
-
-//fn syllable(i: &str) -> IResult<&str, Syllable> {
-    //let (rest, (_, pronunciation)) = tuple((
-        //space0,
-        //alpha1,
-    //))(i)?;
-
-    //Ok((rest, Syllable::new(pronunciation, tone)))
-//}
 
 fn ws<'a, F: 'a, O, E: ParseError<&'a str>>(
     inner: F,
@@ -335,10 +344,6 @@ test3: blah (100g), simple sugar(100g)
     });
 
     //Recipe::parse(&contents)
-}
-
-fn main() {
-    //Recipe::parse()
 }
 
 #[test]

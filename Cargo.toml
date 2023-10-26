@@ -1,9 +1,21 @@
 [package]
-name = "recipe_parser"
+name = "recipes"
 version = "0.1.0"
 edition = "2021"
+
+[lib]
+name = "recipe_parser"
+path = "src/lib/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "recipes"
+path = "src/bin.rs" # replace bin.rs with name of your file
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 nom = "7"
+clap = "2"
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
