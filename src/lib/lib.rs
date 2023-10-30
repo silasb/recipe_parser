@@ -3,6 +3,7 @@ extern crate nom;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
+use serde::{Serialize};
 
 use nom::{
     IResult,
@@ -21,7 +22,7 @@ use nom::{
 //use recipe_parser::take_until_unbalanced;
 //use crate::take_until_unbalanced;
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq, Serialize)]
 pub struct Target {
     pub name: String,
     pub comments: Vec<String>,
@@ -29,14 +30,14 @@ pub struct Target {
     pub instructions: Option<Vec<Instruction>>,
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug,PartialEq, Serialize)]
 pub struct Ingredient {
     pub name:  String,
     pub amount: String,
     pub unit: String,
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug,PartialEq, Serialize)]
 pub struct Instruction {
     pub body: String,
 }
@@ -64,7 +65,7 @@ pub fn test() {
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn test() {
-    println!("test");
+    eprintln!("test");
 }
 
 fn from_hex(input: &str) -> Result<u8, std::num::ParseIntError> {
@@ -187,7 +188,7 @@ fn parse_amount(i: &str) -> IResult<&str, (&str, &str)> {
     let mut test = tuple((recognize_float::<&str, Error<&str>>, preceded(space0, take_until(")"))));
     match test(i) {
         Ok((input, output)) => {
-            println!("{:?}", output);
+            eprintln!("{:?}", output);
             return Ok((input, (output.0, output.1)))
         },
         Err(e) => {
@@ -264,7 +265,7 @@ fn ingredient(i: &str) -> IResult<&str, Ingredient> {
     //eprintln!("here2: {:?} {:?}\n", input2, name2);
 
     let (input, measurement) = opt(parse_measurement)(input)?;
-    println!("here3: {:?} {:?}\n", input, measurement);
+    eprintln!("here3: {:?} {:?}\n", input, measurement);
     if let Some((amount, unit)) = measurement {
         //let (input2, amount) = recognize_float(x)?;
         //let (_, unit) = alpha1(input2)?;
@@ -296,7 +297,7 @@ fn ident(i: &str) -> IResult<&str, Instruction> {
 
 fn instruction(i: &str) -> IResult<&str, Instruction> {
     let (input, body) = take_until("\n")(i)?;
-    //println!("here2343 {:?} {:?}\n", input, body);
+    //eprintln!("here2343 {:?} {:?}\n", input, body);
 
     if body == "" {
         fail::<_, &str, _>(input)?;
@@ -305,10 +306,9 @@ fn instruction(i: &str) -> IResult<&str, Instruction> {
     Ok((input, Instruction { body: String::from(body) }))
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Debug, Serialize)]
 pub struct Recipe {
-    first_name: String,
-    last_name: String,
+    pub targets: Vec<Target>,
 }
 
 impl Recipe {
@@ -345,12 +345,12 @@ test3: blah (100g), simple sugar(100g)
 
     "#);
 
-    println!("{}", recipe);
+    eprintln!("{}", recipe);
     let (input, target2) = target(&recipe).expect("recipe");
     println!("{:?} {:?}\n", input, target2);
 
     let (input, target3) = target(input).expect("recipe");
-    println!("{:?} {:?}\n", input, target3);
+    eprintln!("{:?} {:?}\n", input, target3);
     assert_eq!(target3, Target {
         name: "test2".to_string(),
         comments: vec![],
@@ -359,7 +359,7 @@ test3: blah (100g), simple sugar(100g)
     });
 
     let (input, target4) = target(input).expect("recipe");
-    println!("{:?} {:?}\n", input, target4);
+    eprintln!("{:?} {:?}\n", input, target4);
     assert_eq!(target4, Target {
         name: "test3".to_string(),
         comments: vec!["comment 1".to_string()],

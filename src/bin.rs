@@ -1,8 +1,9 @@
 use clap::{App, Arg};
 use std::{fs, println};
 use std::path::Path;
+use serde_json::{Result};
 
-use recipe_parser::{self, Ingredient};
+use recipe_parser::{self, Recipe};
 
 fn main() {
     let matches = App::new("recipes")
@@ -12,6 +13,18 @@ fn main() {
             Arg::with_name("file_path")
                 .takes_value(true)
                 .help("Input recipe file path"),
+        )
+        .arg(
+            Arg::with_name("json")
+            .long("json")
+            .takes_value(false)
+            .help("output recipe in json")
+        )
+        .arg(
+            Arg::with_name("debug")
+            .long("debug")
+            .takes_value(false)
+            .help("output more debug information")
         )
         .get_matches();
 
@@ -39,11 +52,17 @@ fn main() {
         }
     };
 
-    //recipe_parser::test();
-    //println!("{:?}", input);
-    let Ok((i, targets)) = recipe_parser::Recipe::parse(&input) else { todo!() };
-    println!("{:?}", i);
+    let Ok((_, targets)) = recipe_parser::Recipe::parse(&input) else { todo!() };
+    //println!("{:?}", i);
 
+    if matches.is_present("json") {
+        format_for_json(targets);
+    } else {
+        format_for_stdout(targets);
+    }
+}
+
+fn format_for_stdout(targets: Vec<recipe_parser::Target>) {
     for target in targets.iter() {
         for comment in target.comments.iter() {
             println!("# {}", comment);
@@ -92,4 +111,13 @@ fn main() {
 
         println!();
     }
+}
+
+fn format_for_json(targets: Vec<recipe_parser::Target>) {
+    let r = Recipe {
+        targets
+    };
+
+    let json = serde_json::to_string(&r).expect("could not output as json");
+    println!("{}", json);
 }
