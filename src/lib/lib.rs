@@ -301,8 +301,7 @@ fn ident(i: &str) -> IResult<&str, Instruction> {
 }
 
 fn instruction(i: &str) -> IResult<&str, Instruction> {
-    let (input, body) = take_until("\n")(i)?;
-    //eprintln!("here2343 {:?} {:?}\n", input, body);
+    let (input, body) = alt((take_until("\n"),  rest))(i)?;
 
     if body == "" {
         fail::<_, &str, _>(input)?;
@@ -347,8 +346,7 @@ test2: blah
 test3: blah (100g), simple sugar(100g)
 	hello world
 	hi
-
-    "#);
+"#);
 
     eprintln!("{}", recipe);
     let (input, target2) = target(&recipe).expect("recipe");
@@ -382,9 +380,8 @@ test3: blah (100g), simple sugar(100g)
 fn test_parse_target() {
     let input = r#"
 pizza:
-	blah
-"#;
-    assert_eq!(target(input), Ok(("\n", Target {
+	blah"#;
+    assert_eq!(target(input), Ok(("", Target {
         name: String::from("pizza"),
         comments: vec![],
         ingredients: None,
