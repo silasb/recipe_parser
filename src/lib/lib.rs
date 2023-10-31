@@ -58,9 +58,14 @@ extern {
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
-pub fn test() {
-    //println!("test");
-    alert(&format!("Hello, {}!", "hello"));
+pub fn parse(input: &str) -> String {
+    let Ok((_, targets)) = Recipe::parse(input) else { todo!() };
+    let r = Recipe {
+        targets
+    };
+
+    let json = serde_json::to_string(&r).expect("could not output as json");
+    json
 }
 
 #[cfg(not(target_arch = "wasm32"))]
