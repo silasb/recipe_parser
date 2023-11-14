@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8" />
+    <title>Recipes</title>
+    <style>
+.container {
+  display: flex;
+}
+
+.container div {
+  width: 100%;
+}
+
+    </style>
+  </head>
+  <body>
+    <script type="module">
+      import init, { parse } from "./pkg/recipe_parser.js";
+
+      let template1 = document.querySelector("#template1").innerHTML;
+      let templateEl = document.getElementById("template");
+      templateEl.value = template1
+
+      document.getElementById('recipe').addEventListener('keydown', function(e) {
+        if (e.key == 'Tab') {
+          e.preventDefault();
+          var start = this.selectionStart;
+          var end = this.selectionEnd;
+
+          // set textarea value to: text before caret + tab + text after caret
+          this.value = this.value.substring(0, start) +
+            "\t" + this.value.substring(end);
+
+          // put caret at right position again
+          this.selectionStart =
+            this.selectionEnd = start + 1;
+        }
+      });
+
+      var form = document.getElementById("form");
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+
+        let recipeEl = document.getElementById("recipe");
+
+        init().then(() => {
+          console.log(recipeEl.value)
+          let recipe = JSON.parse(parse(recipeEl.value))
+
+          let template1 = document.getElementById("template").value;
+          let template = Handlebars.compile(template1);
+
+          console.log(recipe)
+          document.getElementById("output").innerHTML = template({ recipe });
+          document.getElementById("raw_output").value = Handlebars.compile("{{{output}}}")({ output: template({ recipe }) });
+        });
+      });
+    </script>
+
+    <div class="container">
+      <div>
+        <h2>Recipe</h2>
+    <form id="form">
+      <textarea name="recipe" id="recipe" rows=20 cols=100>
+# makes 4 250g pizza doughs
+dough: water (368g), salt (18g), instant dry yeast (1.4g), 00 flour (613g)
+	warm water # to a little more than luke warm
+	mix water, yeast, salt together into wet mixture # until everything disolves
+	combine flour and wet mixture together into stand mixer
+	mix for about 6m-8m on low setting
+	proof in the bowl for about 2-3 hours
+	divide into 250g balls and place into a regfregiated tube for 48+ hours
+	put a little olive oil on balls to prevent skinning
+
+sauce: peeled tomatos (1 can), minced garlic (4 cloves), sugar (to taste)
+	mix until well blended
+
+cheese: mozzarella (part skim 1 block low mostiture)
+
+pizza: dough, sauce, cheese, itialian seasonings
+	remove dough balls in morning to use for late lunch, dinner
+	heat oven for 15+ minutes on highest
+	lightly dust with all-purpose flour the wooden peel 
+	lighty dust with all-purpose flour the metal peel
+	pull dough out and place on wooden peel
+	dust dough with flour and start to stretch
+	work quickly, place sauce on pizza
+	lightly season with itialian seasoning
+	put on other ingredents
+	slide pizza onto metal peel
+	launch pizza
+	prepare to rotate pizza every 30 seconds until cooked
+</textarea>
+
+      <br/>
+      <input type="submit" value="Submit" />
+    </form>
+    </div>
+
+    <div>
+        <h2>Template (Mustash.js)</h2>
+    <textarea id="template" rows=20 cols=100></textarea>
+    </div>
+
+
+    <div>
+        <h2>Raw output</h2>
+    <textarea id="raw_output" rows=20 cols=100>
+    </textarea>
+    </div>
+    </div>
+
+    <div id="output"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/handlebars@latest/dist/handlebars.js"></script>
+
+    <script id="template1" type="text/x-handlebars">
+      <style>
+      .recipe {
+        background-color: #121218;
+        color: #ccb;
+      }
+      .recipe table, .recipe tr {
+        table-layout: fixed;
+        width: 100%;
+      }
+      .recipe tr, .recipe td {
+        padding: 0.5rem;
+      }
+      .recipe td:nth-of-type(1) {
+        width: 70%;
+      }
+      .recipe td:nth-of-type(2) {
+        width: 30%;
+      }
+      .recipe tbody tr:nth-child(odd) {
+        background-color: #222228;
+      }
+      .recipe tbody tr:nth-child(even) {
+        background-color: #020208;
+      }
+      </style>
+
+      <div class="recipe">
+      <table>
+      <tbody>
+      {{#each recipe.targets}}
+
+      <!--<tr><td><h2>{{name}}</h2></td><td>&nbsp;</td></tr>-->
+      <tr>
+      <td>
+      <h2>{{name}}</h2>
+      {{#each instructions}}{{body}}</br>{{/each}}
+      </td>
+
+      <td>
+      <ul>
+      {{#each ingredients}}
+      <li>{{name}} {{#if amount}}({{amount}}{{#if unit}}{{unit}}{{/if}}){{/if}}</li>
+      {{/each}}
+      </ul>
+      </td>
+      </tr>
+
+      {{/each}}
+      </tbody>
+      </table>
+      </div>
+    </script>
+  </body>
+</html>
